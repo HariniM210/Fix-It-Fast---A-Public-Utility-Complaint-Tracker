@@ -105,10 +105,12 @@ const connectDatabase = async () => {
 // ---------------- Routes ----------------
 const authRoutes = require('./routes/auth');
 const complaintRoutes = require('./routes/complaints');
+const profileRoutes = require('./routes/profiles');
 const healthRoute = require('./routes/health');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/complaints', complaintRoutes);
+app.use('/api/profiles', profileRoutes);
 app.use('/api/health', healthRoute);
 
 // Root endpoint

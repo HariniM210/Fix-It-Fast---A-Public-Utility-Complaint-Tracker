@@ -1,41 +1,132 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import ProfileForm from '../../../components/forms/ProfileForm/ProfileForm';
+import { getCurrentUserProfile, updateCurrentUserProfile } from '../../../services/profileService';
 import './Profile.css';
 
 const Profile = () => {
   const { user } = useAuth();
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: user?.phone || '9876543210',
-    bio: user?.bio || 'Passionate about making my community better!'
-  });
-  
-  const toggleEdit = () => {
-    if (editing) {
-      // Reset form data if canceling
-      setFormData({
-        name: user?.name || '',
-        email: user?.email || '',
-        phone: user?.phone || '9876543210',
-        bio: user?.bio || 'Passionate about making my community better!'
-      });
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [showForm, setShowForm] = useState(false);
+
+  // Fetch current user's profile on component mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        
+        const response = await getCurrentUserProfile();
+        console.log('✅ Profile loaded:', response);
+        
+        setProfile(response.profile);
+      } catch (err) {
+        console.error('❌ Error loading profile:', err);
+        
+        if (err.response?.status === 404) {
+          // No profile exists, show form to create one
+          setError('No profile found. Please create your profile.');
+          setShowForm(true);
+        } else {
+          setError(err.response?.data?.message || 'Failed to load profile');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchProfile();
     }
-    setEditing((prev) => !prev);
+  }, [user]);
+
+  // Handle form submission (create/update profile)
+  const handleSubmit = async (formData) => {
+    try {
+      setSaving(true);
+      setError('');
+      setSuccess('');
+      
+      console.log('📤 Submitting profile data:', formData);
+      
+      const response = await updateCurrentUserProfile(formData);
+      console.log('✅ Profile saved:', response);
+      
+      setProfile(response.profile);
+      setSuccess(response.message || 'Profile updated successfully!');
+      setShowForm(false);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
+      
+    } catch (err) {
+      console.error('❌ Error saving profile:', err);
+      setError(err.response?.data?.message || 'Failed to save profile');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((d) => ({ ...d, [name]: value }));
+  const toggleFormView = () => {
+    setShowForm(!showForm);
+    setError('');
+    setSuccess('');
   };
 
-  const handleSave = () => {
-    // Here you would typically save the data to your backend
-    console.log('Saving profile data:', formData);
-    alert('Profile updated successfully!');
-    toggleEdit();
-  };
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="profile-page">
+        <div className="profile-container">
+          <div className="loading-state">
+            <div className="loading-spinner"></div>
+            <p>Loading your profile...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show ProfileForm if editing or no profile exists
+  if (showForm || !profile) {
+    return (
+      <div className="profile-page">
+        <div className="profile-header">
+          <h1 className="page-title">
+            {profile ? '✏️ Edit Profile' : '👤 Create Profile'}
+          </h1>
+          <p className="page-subtitle">
+            {profile ? 'Update your personal information' : 'Set up your profile to get started'}
+          </p>
+          
+          {profile && (
+            <button className="btn-back" onClick={toggleFormView}>
+              ← Back to Profile
+            </button>
+          )}
+        </div>
+        
+        {/* Show error if any */}
+        {error && (
+          <div className="error-banner">
+            <span>⚠️ {error}</span>
+          </div>
+        )}
+        
+        <ProfileForm
+          initialData={profile}
+          onSubmit={handleSubmit}
+          loading={saving}
+          isEdit={!!profile}
+          submitButtonText={profile ? 'Update Profile' : 'Create Profile'}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="profile-page">
@@ -48,6 +139,19 @@ const Profile = () => {
       </div>
 
       <div className="profile-container">
+        {/* Success/Error Messages */}
+        {success && (
+          <div className="success-banner">
+            <span>✅ {success}</span>
+          </div>
+        )}
+        
+        {error && (
+          <div className="error-banner">
+            <span>⚠️ {error}</span>
+          </div>
+        )}
+        
         <div className="profile-header">
           <div className="header-decoration">
             <span className="decoration-star">✨</span>
@@ -62,148 +166,142 @@ const Profile = () => {
           <div className="avatar-section">
             <div className="avatar-container">
               <div className="avatar-circle">
-                <span className="avatar-text">{user?.name?.charAt(0)?.toUpperCase() || 'U'}</span>
+                <span className="avatar-text">
+                  {profile?.fullName?.charAt(0)?.toUpperCase() || 
+                   profile?.firstName?.charAt(0)?.toUpperCase() || 
+                   user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </span>
               </div>
-              <div className="avatar-badge">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 6L9 17l-5-5"></path>
-                </svg>
-              </div>
+              {profile?.isVerified && (
+                <div className="avatar-badge">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6L9 17l-5-5"></path>
+                  </svg>
+                </div>
+              )}
             </div>
             <div className="user-info">
-              <h2 className="user-name">{user?.name || 'User'}</h2>
+              <h2 className="user-name">
+                {profile?.fullName || `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || user?.name || 'User'}
+              </h2>
               <p className="user-role">{user?.role === 'admin' ? '👑 Administrator' : '🏠 Community Member'}</p>
+              {profile?.occupation && (
+                <p className="user-occupation">💼 {profile.occupation}</p>
+              )}
             </div>
           </div>
           
-          <form className="profile-form" onSubmit={(e) => e.preventDefault()}>
-            <div className="form-grid">
-              <div className="profile-form-group">
-                <label htmlFor="name" className="form-label">
-                  <span className="label-icon">👤</span>
-                  <span className="label-text">Full Name</span>
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  disabled={!editing}
-                  className={`form-input ${!editing ? 'disabled' : ''}`}
-                  placeholder="Enter your full name"
-                />
-              </div>
-              
-              <div className="profile-form-group">
-                <label htmlFor="email" className="form-label">
-                  <span className="label-icon">📧</span>
-                  <span className="label-text">Email Address</span>
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  disabled={!editing}
-                  className={`form-input ${!editing ? 'disabled' : ''}`}
-                  placeholder="Enter your email"
-                />
-              </div>
-              
-              <div className="profile-form-group">
-                <label htmlFor="phone" className="form-label">
-                  <span className="label-icon">📱</span>
-                  <span className="label-text">Phone Number</span>
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  disabled={!editing}
-                  className={`form-input ${!editing ? 'disabled' : ''}`}
-                  placeholder="Enter your phone number"
-                />
-              </div>
-              
-              <div className="profile-form-group bio-group">
-                <label htmlFor="bio" className="form-label">
-                  <span className="label-icon">💭</span>
-                  <span className="label-text">Bio</span>
-                </label>
-                <textarea
-                  id="bio"
-                  name="bio"
-                  rows="4"
-                  value={formData.bio}
-                  onChange={handleChange}
-                  disabled={!editing}
-                  className={`form-textarea ${!editing ? 'disabled' : ''}`}
-                  placeholder="Tell us about yourself..."
-                />
-              </div>
-            </div>
-            
-            <div className="profile-form-buttons">
-              {editing ? (
-                <div className="button-group">
-                  <button 
-                    type="button"
-                    className="btn btn-success" 
-                    onClick={handleSave}
-                  >
-                    <span className="btn-icon">💾</span>
-                    <span className="btn-text">Save Changes</span>
-                  </button>
-                  <button 
-                    type="button"
-                    className="btn btn-secondary" 
-                    onClick={toggleEdit}
-                  >
-                    <span className="btn-icon">✖️</span>
-                    <span className="btn-text">Cancel</span>
-                  </button>
+          {/* Profile Information Display */}
+          <div className="profile-info">
+            <div className="info-grid">
+              <div className="info-item">
+                <span className="info-icon">📧</span>
+                <div className="info-content">
+                  <span className="info-label">Email</span>
+                  <span className="info-value">{profile?.email || 'Not provided'}</span>
                 </div>
-              ) : (
-                <button 
-                  type="button"
-                  className="btn btn-primary" 
-                  onClick={toggleEdit}
-                >
-                  <span className="btn-icon">✏️</span>
-                  <span className="btn-text">Edit Profile</span>
-                </button>
+              </div>
+              
+              {profile?.phone && (
+                <div className="info-item">
+                  <span className="info-icon">📱</span>
+                  <div className="info-content">
+                    <span className="info-label">Phone</span>
+                    <span className="info-value">{profile.phone}</span>
+                  </div>
+                </div>
+              )}
+              
+              <div className="info-item">
+                <span className="info-icon">📍</span>
+                <div className="info-content">
+                  <span className="info-label">Location</span>
+                  <span className="info-value">
+                    {profile?.fullAddress || `${profile?.address?.city || ''}, ${profile?.address?.state || ''}`.trim() || 'Not provided'}
+                  </span>
+                </div>
+              </div>
+              
+              {profile?.age && (
+                <div className="info-item">
+                  <span className="info-icon">🎂</span>
+                  <div className="info-content">
+                    <span className="info-label">Age</span>
+                    <span className="info-value">{profile.age} years old</span>
+                  </div>
+                </div>
+              )}
+              
+              {profile?.website && (
+                <div className="info-item">
+                  <span className="info-icon">🌐</span>
+                  <div className="info-content">
+                    <span className="info-label">Website</span>
+                    <a href={profile.website} target="_blank" rel="noopener noreferrer" className="info-link">
+                      {profile.website}
+                    </a>
+                  </div>
+                </div>
               )}
             </div>
-          </form>
+            
+            {profile?.bio && (
+              <div className="bio-section">
+                <h3>About Me</h3>
+                <p className="bio-text">{profile.bio}</p>
+              </div>
+            )}
+          </div>
+          
+          {/* Action Button */}
+          <div className="profile-actions">
+            <button 
+              type="button"
+              className="btn btn-primary" 
+              onClick={toggleFormView}
+            >
+              <span className="btn-icon">✏️</span>
+              <span className="btn-text">Edit Profile</span>
+            </button>
+          </div>
 
           {/* Profile Stats */}
           <div className="profile-stats">
             <div className="stat-item">
               <span className="stat-icon">📝</span>
               <div className="stat-info">
-                <span className="stat-number">12</span>
+                <span className="stat-number">{profile?.totalComplaints || 0}</span>
                 <span className="stat-label">Complaints Filed</span>
               </div>
             </div>
             <div className="stat-item">
               <span className="stat-icon">✅</span>
               <div className="stat-info">
-                <span className="stat-number">8</span>
+                <span className="stat-number">{profile?.resolvedComplaints || 0}</span>
                 <span className="stat-label">Issues Resolved</span>
               </div>
             </div>
             <div className="stat-item">
-              <span className="stat-icon">👍</span>
+              <span className="stat-icon">⭐</span>
               <div className="stat-info">
-                <span className="stat-number">45</span>
-                <span className="stat-label">Community Likes</span>
+                <span className="stat-number">{profile?.reputationScore || 0}</span>
+                <span className="stat-label">Reputation Score</span>
               </div>
             </div>
           </div>
+          
+          {/* Join Date */}
+          {profile?.joinDate && (
+            <div className="profile-footer">
+              <p className="join-date">
+                🎉 Member since {new Date(profile.joinDate).toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
