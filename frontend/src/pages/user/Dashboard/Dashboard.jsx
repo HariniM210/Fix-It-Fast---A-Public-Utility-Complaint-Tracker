@@ -59,6 +59,66 @@ const Dashboard = () => {
           ))}
         </div>
 
+        {/* Recent Complaints Section */}
+        <div className="dashboard-complaints-section">
+          <h2 className="section-title">Your Recent Complaints</h2>
+          
+          {loading ? (
+            <div className="loading-state">
+              <div className="loading-spinner"></div>
+              <p>Loading your complaints...</p>
+            </div>
+          ) : complaints && complaints.length > 0 ? (
+            <div className="complaints-grid">
+              {complaints.slice(0, 6).map((complaint, index) => (
+                <div 
+                  key={complaint._id || complaint.id || index} 
+                  className="complaint-card glass-card"
+                  style={{ '--animation-delay': `${index * 0.1}s` }}
+                >
+                  <div className="complaint-header">
+                    <h3 className="complaint-title">{complaint.title}</h3>
+                    <span className={`status-badge status-${complaint.status?.toLowerCase().replace(' ', '-')}`}>
+                      {complaint.status}
+                    </span>
+                  </div>
+                  
+                  <div className="complaint-details">
+                    <p className="complaint-description">
+                      {complaint.description?.length > 100 
+                        ? complaint.description.substring(0, 100) + '...'
+                        : complaint.description
+                      }
+                    </p>
+                    
+                    <div className="complaint-meta">
+                      <span className="complaint-location">📍 {complaint.location}</span>
+                      <span className="complaint-category">🏷️ {complaint.category}</span>
+                      <span className="complaint-date">
+                        📅 {new Date(complaint.createdAt || complaint.date).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {complaint.likes && complaint.likes.length > 0 && (
+                    <div className="complaint-likes">
+                      ❤️ {complaint.likes.length} likes
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="no-complaints">
+              <div className="empty-state">
+                <span className="empty-icon">📝</span>
+                <h3>No complaints yet</h3>
+                <p>You haven't submitted any complaints. Ready to make your community better?</p>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* CTA Section */}
         <div className="dashboard-cta-section">
           <h2 className="cta-title">Need to report a new issue?</h2>

@@ -1,322 +1,147 @@
-// src/routes/complaints.js
-const express = require('express');
-const Complaint = require('../models/Complaint');
-const User = require('../models/User');
-const {
-  authenticateToken,
-  requireAdminOrModerator
-} = require('../middleware/auth');
-const {
-  validateComplaintCreation,
-  validateStatusUpdate
-} = require('../middleware/validation');
+const mongoose = require('mongoose');
 
-const router = express.Router();
-
-/**
- * GET /api/complaints
- * Private - Users see only their complaints; admins/moderators can filter all.
- * Query params:
- *  - page, limit
- *  - status, category, priority, location (search)
- *  - user (admin/moderator only)
- *  - sortBy (default createdAt), sortOrder (asc|desc)
- */
-router.get('/', authenticateToken, async (req, res) => {
-  try {
-    const {
-      page = 1,
-      limit = 10,
-      status,
-      category,
-      priority,
-      location,
-      user: userId,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
-
-    const query = {};
-
-    if (req.user.role === 'user') {
-      query.user = req.user.id;
-    } else if (userId) {
-      query.user = userId;
+const complaintSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User is required']
+  },
+  title: {
+    type: String,
+    required: [true, 'Title is required'],
+    trim: true,
+    minlength: [3, 'Title must be at least 3 characters'],
+    maxlength: [100, 'Title cannot exceed 100 characters']
+  },
+  description: {
+    type: String,
+    required: [true, 'Description is required'],
+    trim: true,
+    minlength: [10, 'Description must be at least 10 characters'],
+    maxlength: [1000, 'Description cannot exceed 1000 characters']
+  },
+  category: {
+    type: String,
+    required: [true, 'Category is required'],
+    enum: {
+      values: [
+        'Roads & Infrastructure',
+        'Water Supply',
+        'Electricity',
+        'Sanitation',
+        'Public Transport',
+        'Healthcare',
+        'Education',
+        'Environment',
+        'Safety & Security',
+        'Other'
+      ],
+      message: '{VALUE} is not a valid category'
     }
-
-    if (status) query.status = status;
-    if (category) query.category = category;
-    if (priority) query.priority = priority;
-    if (location) query.location = { $regex: location, $options: 'i' };
-
-    const pageNum = Number(page) || 1;
-    const limitNum = Number(limit) || 10;
-
-    const complaints = await Complaint.find(query)
-      .populate('user', 'name email location')
-      .populate('assignedTo', 'name email')
-      .limit(limitNum)
-      .skip((pageNum - 1) * limitNum)
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 });
-
-    const total = await Complaint.countDocuments(query);
-
-    res.json({
-      success: true,
-      complaints,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        pages: Math.ceil(total / limitNum)
-      }
-    });
-  } catch (error) {
-    console.error('Get complaints error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch complaints'
-    });
-  }
+  },
+  priority: {
+    type: String,
+    required: [true, 'Priority is required'],
+    enum: {
+      values: ['Low', 'Medium', 'High', 'Critical'],
+      message: '{VALUE} is not a valid priority level'
+    },
+    default: 'Medium'
+  },
+  location: {
+    type: String,
+    required: [true, 'Location is required'],
+    trim: true,
+    minlength: [3, 'Location must be at least 3 characters'],
+    maxlength: [200, 'Location cannot exceed 200 characters']
+  },
+  status: {
+    type: String,
+    enum: {
+      values: ['Pending', 'In Progress', 'Resolved', 'Rejected'],
+      message: '{VALUE} is not a valid status'
+    },
+    default: 'Pending'
+  },
+  adminNote: {
+    type: String,
+    default: '',
+    maxlength: [500, 'Admin note cannot exceed 500 characters']
+  },
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  likes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  statusHistory: [{
+    status: {
+      type: String,
+      required: true
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    },
+    note: {
+      type: String,
+      default: ''
+    }
+  }],
+  attachments: [{
+    url: String,
+    filename: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }]
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
-/**
- * POST /api/complaints
- * Private (Bearer token)
- * Body: { title, description, category, priority, location }
- */
-router.post('/', authenticateToken, validateComplaintCreation, async (req, res) => {
-  try {
-    const { title, description, category, priority, location } = req.body;
-
-    const complaint = new Complaint({
-      title,
-      description,
-      category,
-      priority,
-      location,
-      user: req.user.id
-    });
-
-    await complaint.save();
-
-    // Update user's complaints count
-    await User.findByIdAndUpdate(req.user.id, { $inc: { complaintsCount: 1 } });
-
-    await complaint.populate('user', 'name email location');
-
-    res.status(201).json({
-      success: true,
-      message: 'Complaint created successfully',
-      complaint
-    });
-  } catch (error) {
-    console.error('Create complaint error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create complaint',
-      error: error.message
-    });
-  }
+// Virtual for likes count
+complaintSchema.virtual('likesCount').get(function() {
+  return this.likes ? this.likes.length : 0;
 });
 
-/**
- * GET /api/complaints/:id
- * Private - Users can only see their own complaints
- */
-router.get('/:id', authenticateToken, async (req, res) => {
-  try {
-    const complaint = await Complaint.findById(req.params.id)
-      .populate('user', 'name email location')
-      .populate('assignedTo', 'name email')
-      .populate('statusHistory.updatedBy', 'name');
-
-    if (!complaint) {
-      return res.status(404).json({ success: false, message: 'Complaint not found' });
-    }
-
-    if (req.user.role === 'user' && complaint.user._id.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Access denied' });
-    }
-
-    res.json({ success: true, complaint });
-  } catch (error) {
-    console.error('Get complaint error:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch complaint' });
+// Method to toggle like
+complaintSchema.methods.toggleLike = async function(userId) {
+  const userIndex = this.likes.indexOf(userId);
+  if (userIndex === -1) {
+    this.likes.push(userId);
+  } else {
+    this.likes.splice(userIndex, 1);
   }
+  return this.save();
+};
+
+// Pre-save middleware to add initial status to history
+complaintSchema.pre('save', function(next) {
+  if (this.isNew) {
+    this.statusHistory.push({
+      status: this.status,
+      updatedBy: this.user,
+      note: 'Complaint created'
+    });
+  }
+  next();
 });
 
-/**
- * PUT /api/complaints/:id
- * Private - Only owner or admin; users only if status is 'Pending'
- */
-router.put('/:id', authenticateToken, async (req, res) => {
-  try {
-    const complaint = await Complaint.findById(req.params.id);
+// Index for better performance
+complaintSchema.index({ user: 1, createdAt: -1 });
+complaintSchema.index({ status: 1, createdAt: -1 });
+complaintSchema.index({ category: 1, priority: 1 });
+complaintSchema.index({ location: 'text' });
 
-    if (!complaint) {
-      return res.status(404).json({ success: false, message: 'Complaint not found' });
-    }
-
-    if (complaint.user.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Access denied' });
-    }
-
-    if (req.user.role === 'user' && complaint.status !== 'Pending') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot update complaint after it has been processed'
-      });
-    }
-
-    const allowedFields = ['title', 'description', 'category', 'priority', 'location'];
-    const updates = {};
-    allowedFields.forEach(field => {
-      if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
-    });
-
-    const updatedComplaint = await Complaint.findByIdAndUpdate(
-      req.params.id,
-      updates,
-      { new: true, runValidators: true }
-    ).populate('user', 'name email location');
-
-    res.json({
-      success: true,
-      message: 'Complaint updated successfully',
-      complaint: updatedComplaint
-    });
-  } catch (error) {
-    console.error('Update complaint error:', error);
-    res.status(500).json({ success: false, message: 'Failed to update complaint' });
-  }
-});
-
-/**
- * PUT /api/complaints/:id/status
- * Private (Admin/Moderator)
- * Body: { status: 'Pending' | 'In Progress' | 'Resolved', note? }
- */
-router.put('/:id/status', authenticateToken, requireAdminOrModerator, validateStatusUpdate, async (req, res) => {
-  try {
-    const { status, note } = req.body;
-
-    const complaint = await Complaint.findById(req.params.id);
-    if (!complaint) {
-      return res.status(404).json({ success: false, message: 'Complaint not found' });
-    }
-
-    complaint.status = status;
-    if (note) complaint.adminNote = note;
-
-    complaint.statusHistory.push({
-      status,
-      updatedBy: req.user.id,
-      note
-    });
-
-    await complaint.save();
-    await complaint.populate('user', 'name email location');
-
-    res.json({
-      success: true,
-      message: 'Complaint status updated successfully',
-      complaint
-    });
-  } catch (error) {
-    console.error('Update status error:', error);
-    res.status(500).json({ success: false, message: 'Failed to update complaint status' });
-  }
-});
-
-/**
- * POST /api/complaints/:id/like
- * Private - toggles like for current user
- */
-router.post('/:id/like', authenticateToken, async (req, res) => {
-  try {
-    const complaint = await Complaint.findById(req.params.id);
-    if (!complaint) {
-      return res.status(404).json({ success: false, message: 'Complaint not found' });
-    }
-
-    await complaint.toggleLike(req.user.id);
-
-    res.json({
-      success: true,
-      message: 'Complaint like status updated',
-      likes: complaint.likesmongoose 
-    });
-  } catch (error) {
-    console.error('Toggle like error:', error);
-    res.status(500).json({ success: false, message: 'Failed to update like status' });
-  }
-});
-
-/**
- * DELETE /api/complaints/:id
- * Private - only owner or admin; users only if 'Pending'
- */
-router.delete('/:id', authenticateToken, async (req, res) => {
-  try {
-    const complaint = await Complaint.findById(req.params.id);
-    if (!complaint) {
-      return res.status(404).json({ success: false, message: 'Complaint not found' });
-    }
-
-    if (complaint.user.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Access denied' });
-    }
-
-    if (req.user.role === 'user' && complaint.status !== 'Pending') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete complaint after it has been processed'
-      });
-    }
-
-    await Complaint.findByIdAndDelete(req.params.id);
-
-    await User.findByIdAndUpdate(complaint.user, { $inc: { complaintsCount: -1 } });
-
-    res.json({ success: true, message: 'Complaint deleted successfully' });
-  } catch (error) {
-    console.error('Delete complaint error:', error);
-    res.status(500).json({ success: false, message: 'Failed to delete complaint' });
-  }
-});
-
-/**
- * GET /api/complaints/stats/overview
- * Private (Admin/Moderator)
- */
-router.get('/stats/overview', authenticateToken, requireAdminOrModerator, async (req, res) => {
-  try {
-    const total = await Complaint.countDocuments();
-    const pending = await Complaint.countDocuments({ status: 'Pending' });
-    const inProgress = await Complaint.countDocuments({ status: 'In Progress' });
-    const resolved = await Complaint.countDocuments({ status: 'Resolved' });
-
-    const byCategory = await Complaint.aggregate([
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-
-    const recent = await Complaint.find()
-      .populate('user', 'name location')
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    res.json({
-      success: true,
-      stats: { total, pending, inProgress, resolved, byCategory, recent }
-    });
-  } catch (error) {
-    console.error('Get stats error:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch statistics' });
-  }
-});
-
-module.exports = router;
+module.exports = mongoose.model('Complaint', complaintSchema);

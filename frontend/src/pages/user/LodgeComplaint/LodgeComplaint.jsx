@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createComplaint } from '../../../services/complaintService';
+import { useComplaint } from '../../../context/ComplaintContext';
 import './LodgeComplaint.css';
 
 const LodgeComplaint = () => {
   const [formData, setFormData] = useState({
     title: '',
     category: '',
-    priority: '',
+    priority: 'Medium',
     location: '',
     description: '',
     files: []
@@ -20,6 +20,7 @@ const LodgeComplaint = () => {
   const [dragOver, setDragOver] = useState(false);
   const [apiError, setApiError] = useState('');
   const navigate = useNavigate();
+  const { createComplaint } = useComplaint();
 
   useEffect(() => {
     setTimeout(() => setAnimateFields(true), 100);
@@ -27,12 +28,15 @@ const LodgeComplaint = () => {
 
   // Keep these in sync with backend accepted values
   const categories = [
+    { value: 'Roads & Infrastructure', label: '🛣️ Roads & Infrastructure' },
     { value: 'Water Supply', label: '💧 Water Supply' },
     { value: 'Electricity', label: '⚡ Electricity' },
-    { value: 'Roads', label: '🛣️ Road & Infrastructure' },
     { value: 'Sanitation', label: '🧹 Sanitation' },
-    { value: 'Street Light', label: '💡 Street Light' },
-    { value: 'Security', label: '🔒 Security' },
+    { value: 'Public Transport', label: '🚌 Public Transport' },
+    { value: 'Healthcare', label: '🏥 Healthcare' },
+    { value: 'Education', label: '📚 Education' },
+    { value: 'Environment', label: '🌿 Environment' },
+    { value: 'Safety & Security', label: '🔒 Safety & Security' },
     { value: 'Other', label: '📌 Other' }
   ];
 
@@ -40,7 +44,7 @@ const LodgeComplaint = () => {
     { value: 'Low', label: '🟢 Low' },
     { value: 'Medium', label: '🟡 Medium' },
     { value: 'High', label: '🟠 High' },
-    { value: 'Urgent', label: '🔴 Urgent' }
+    { value: 'Critical', label: '🔴 Critical' }
   ];
 
   const validate = () => {
@@ -95,17 +99,22 @@ const LodgeComplaint = () => {
         location: formData.location.trim()
       };
 
-      const res = await createComplaint(payload);
-      // Success flow
-      setProgress(100);
-      setShowSuccess(true);
+      const result = await createComplaint(payload);
+      
+      if (result.success) {
+        // Success flow
+        setProgress(100);
+        setShowSuccess(true);
 
-      // Optional: navigate to Track Status after showing success
-      setTimeout(() => {
-        setShowSuccess(false);
-        clearForm();
-        navigate('/track-status');
-      }, 1500);
+        // Navigate to dashboard after showing success
+        setTimeout(() => {
+          setShowSuccess(false);
+          clearForm();
+          navigate('/dashboard');
+        }, 1500);
+      } else {
+        throw new Error(result.error || 'Failed to submit complaint');
+      }
     } catch (err) {
       const message =
         err.response?.data?.message ||
@@ -149,7 +158,7 @@ const LodgeComplaint = () => {
     setFormData({
       title: '',
       category: '',
-      priority: '',
+      priority: 'Medium',
       location: '',
       description: '',
       files: []

@@ -71,12 +71,23 @@ const validateComplaintCreation = [
     .withMessage('Description must be between 10 and 1000 characters'),
   
   body('category')
-    .isIn(['Water Supply', 'Electricity', 'Roads', 'Sanitation', 'Street Light', 'Security', 'Other'])
+    .isIn([
+      'Roads & Infrastructure',
+      'Water Supply',
+      'Electricity',
+      'Sanitation',
+      'Public Transport',
+      'Healthcare',
+      'Education',
+      'Environment',
+      'Safety & Security',
+      'Other'
+    ])
     .withMessage('Invalid category'),
   
   body('priority')
     .optional()
-    .isIn(['Low', 'Medium', 'High', 'Urgent'])
+    .isIn(['Low', 'Medium', 'High', 'Critical'])
     .withMessage('Invalid priority'),
   
   body('location')
