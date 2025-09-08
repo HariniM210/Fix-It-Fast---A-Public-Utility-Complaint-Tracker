@@ -19,6 +19,9 @@ const router = express.Router();
  */
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    console.log('📥 GET complaints request received');
+    console.log('👤 User ID:', req.user.id, '| Role:', req.user.role);
+    
     const {
       page = 1,
       limit = 10,
@@ -33,16 +36,23 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const query = {};
 
+    // Regular users can only see their own complaints
     if (req.user.role === 'user') {
       query.user = req.user.id;
+      console.log('🔒 User role: filtering complaints for user', req.user.id);
     } else if (userId) {
       query.user = userId;
+      console.log('🔍 Admin/Moderator: filtering complaints for user', userId);
+    } else {
+      console.log('🔓 Admin/Moderator: fetching all complaints');
     }
 
     if (status) query.status = status;
     if (category) query.category = category;
     if (priority) query.priority = priority;
     if (location) query.location = { $regex: location, $options: 'i' };
+
+    console.log('🔍 Query filter:', query);
 
     const complaints = await Complaint.find(query)
       .populate('user', 'name email location')
@@ -53,9 +63,11 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const total = await Complaint.countDocuments(query);
 
+    console.log(`✅ Found ${complaints.length} complaints (total: ${total})`);
+
     res.json({
       success: true,
-      complaints,
+      data: complaints, // Changed from 'complaints' to 'data' for consistency
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -64,10 +76,11 @@ router.get('/', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get complaints error:', error);
+    console.error('❌ Get complaints error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch complaints'
+      message: 'Failed to fetch complaints',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
@@ -78,34 +91,55 @@ router.get('/', authenticateToken, async (req, res) => {
  */
 router.post('/', authenticateToken, validateComplaintCreation, async (req, res) => {
   try {
+    console.log('📥 Complaint POST request received');
+    console.log('👤 User ID:', req.user.id);
+    console.log('📋 Request body:', req.body);
+    
     const { title, description, category, priority, location } = req.body;
 
     const complaint = new Complaint({
       title,
       description,
       category,
-      priority,
+      priority: priority || 'Medium',
       location,
       user: req.user.id
     });
 
+    console.log('💾 Saving complaint to database...');
     await complaint.save();
+    console.log('✅ Complaint saved with ID:', complaint._id);
 
+    // Update user complaint count
     await User.findByIdAndUpdate(req.user.id, { $inc: { complaintsCount: 1 } });
 
+    // Populate user info
     await complaint.populate('user', 'name email location');
 
+    console.log('🎉 Complaint lodged successfully');
+    
     res.status(201).json({
       success: true,
-      message: 'Complaint created successfully',
-      complaint
+      message: 'Complaint lodged successfully',
+      data: complaint
     });
   } catch (error) {
-    console.error('Create complaint error:', error);
+    console.error('❌ Create complaint error:', error);
+    
+    // Handle validation errors specifically
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Failed to create complaint',
-      error: error.message
+      message: 'Failed to lodge complaint',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });

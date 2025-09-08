@@ -140,48 +140,69 @@ router.post('/', [
   handleValidationErrors
 ], async (req, res) => {
   try {
-    console.log(`📥 Creating profile for authenticated user: ${req.user.id}`);
+    console.log(`📥 Creating/Updating profile for authenticated user: ${req.user.id}`);
     console.log('Profile data:', { ...req.body, email: '[PROTECTED]' });
 
-    // Check if profile already exists
-    const existingProfile = await Profile.findOne({ user: req.user.id });
-    if (existingProfile) {
-      return res.status(409).json({
-        success: false,
-        message: 'Profile already exists. Use PUT to update.'
-      });
-    }
-
-    // Check if email is already in use
-    const emailExists = await Profile.findOne({ email: req.body.email });
-    if (emailExists) {
-      return res.status(409).json({
-        success: false,
-        message: 'Email address is already in use'
-      });
-    }
-
-    const profileData = {
-      user: req.user.id,
-      ...req.body
-    };
-
-    const profile = new Profile(profileData);
-    await profile.save();
-    await profile.populate('user', 'name email role');
+    // Find existing profile
+    let profile = await Profile.findOne({ user: req.user.id });
     
-    console.log('✅ New profile created successfully');
+    if (profile) {
+      // Check if new email conflicts with another user
+      if (req.body.email && req.body.email !== profile.email) {
+        const emailExists = await Profile.findOne({ 
+          email: req.body.email, 
+          _id: { $ne: profile._id } 
+        });
+        
+        if (emailExists) {
+          return res.status(409).json({
+            success: false,
+            message: 'Email address is already in use'
+          });
+        }
+      }
+
+      // Update existing profile
+      profile = await Profile.findOneAndUpdate(
+        { user: req.user.id },
+        { ...req.body },
+        { 
+          new: true,
+          runValidators: true,
+          select: '-__v'
+        }
+      ).populate('user', 'name email role');
+
+      return res.json({
+        success: true,
+        data: profile,
+        message: 'Profile updated successfully'
+      });
+    }
+
+    // Create new profile
+    // Inside your POST route
+    const newProfile = new Profile({
+      user: req.user.id,  // Make sure this matches the field name in schema
+      name: req.body.name,
+      email: req.body.email,
+      bio: req.body.bio || '',
+      location: req.body.location || '',
+      skills: req.body.skills || []
+    });
+
+    await newProfile.save();
+    await newProfile.populate('user', 'name email role');
     
     res.status(201).json({
       success: true,
-      data: profile,
+      data: newProfile,
       message: 'Profile created successfully'
     });
 
   } catch (error) {
-    console.error('❌ Error creating user profile:', error);
+    console.error('❌ Error handling profile:', error);
     
-    // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyValue)[0];
       return res.status(409).json({
@@ -190,7 +211,6 @@ router.post('/', [
       });
     }
     
-    // Handle validation errors
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => ({
         field: err.path,
@@ -206,7 +226,7 @@ router.post('/', [
 
     res.status(500).json({
       success: false,
-      message: 'Failed to create profile',
+      message: 'Server Error',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

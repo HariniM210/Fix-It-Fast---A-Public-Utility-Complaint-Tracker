@@ -1,9 +1,5 @@
 const mongoose = require('mongoose');
 
-/**
- * Profile Schema for FixItFast Application
- * Simplified schema matching frontend requirements
- */
 const profileSchema = new mongoose.Schema({
   // Reference to User model (ObjectId reference)
   user: {
@@ -51,13 +47,13 @@ const profileSchema = new mongoose.Schema({
     maxlength: [50, 'Each skill cannot exceed 50 characters']
   }]
 }, {
-  timestamps: true, // Adds createdAt and updatedAt automatically
+  timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
 // Indexes for better query performance
-profileSchema.index({ user: 1 });
+profileSchema.index({ user: 1 }, { unique: true });
 profileSchema.index({ email: 1 });
 profileSchema.index({ location: 1 });
 profileSchema.index({ skills: 1 });
