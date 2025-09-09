@@ -36,7 +36,7 @@ const Contact = () => {
               <div className="method-icon">📧</div>
               <div>
                 <h3>Email</h3>
-                <p>support@fixitfast.com</p>
+                <p>supportfixitfast@gmail.com</p>
                 <small>We respond within 24 hours</small>
               </div>
             </div>

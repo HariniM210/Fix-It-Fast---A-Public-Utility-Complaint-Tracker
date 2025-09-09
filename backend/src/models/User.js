@@ -54,8 +54,12 @@ const userSchema = new mongoose.Schema({
   profilePicture: {
     type: String,
     default: ''
+  },
+  complaintCount: {
+    type: Number,
+    default: 0
   }
-}, { 
+}, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }

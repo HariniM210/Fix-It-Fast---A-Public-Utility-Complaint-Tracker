@@ -67,11 +67,62 @@ export const complaintsAPI = {
   like: (id) => API.post(`/complaints/${id}/like`),
 };
 
+// Dashboard API calls
+export const dashboardAPI = {
+  // Get dashboard statistics for the logged-in user
+  getDashboardData: async () => {
+    try {
+      console.log('🔄 Fetching dashboard data...');
+      const response = await API.get('/dashboard/me');
+      console.log('✅ Dashboard data fetched:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching dashboard data:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Get admin dashboard statistics (admin only)
+  getAdminStats: async () => {
+    try {
+      console.log('🔄 Fetching admin dashboard stats...');
+      const response = await API.get('/dashboard/admin/stats');
+      console.log('✅ Admin dashboard data fetched:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching admin dashboard data:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+};
+
 // Users API calls
 export const usersAPI = {
   getAll: (params) => API.get('/users', { params }),
   updateRole: (id, role) => API.put(`/users/${id}/role`, { role }),
   updateStatus: (id, status) => API.put(`/users/${id}/status`, { status }),
+};
+
+// API Helper functions
+export const apiHelpers = {
+  // Handle API errors consistently
+  handleError: (error) => {
+    if (error.response) {
+      const message = error.response.data?.message || 
+                     error.response.data?.errors?.[0] || 
+                     `Server error: ${error.response.status}`;
+      return { message, status: error.response.status };
+    } else if (error.request) {
+      return { message: 'Network error - please check your connection', status: 0 };
+    } else {
+      return { message: error.message || 'An unexpected error occurred', status: -1 };
+    }
+  },
+
+  // Check if user is authenticated
+  isAuthenticated: () => {
+    return !!localStorage.getItem('authToken');
+  }
 };
 
 export default API;

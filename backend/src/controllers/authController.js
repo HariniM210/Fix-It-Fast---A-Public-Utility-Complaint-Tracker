@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { validationResult } = require('express-validator');
 const User = require('../models/User');
+const Dashboard = require('../models/Dashboard');
 
 // Helper: sign JWT
 const signToken = (userId, role = 'user') => {
@@ -36,6 +37,21 @@ const register = async (req, res) => {
       location: (location || '').trim()
     });
     await user.save();
+
+    // Create dashboard entry for new user
+    try {
+      await Dashboard.create({
+        user: user._id,
+        totalComplaints: 0,
+        pending: 0,
+        inProgress: 0,
+        resolved: 0,
+        rejected: 0
+      });
+    } catch (dashboardError) {
+      console.error('Failed to create dashboard for user:', user._id, dashboardError);
+      // Continue with registration even if dashboard creation fails
+    }
 
     const token = signToken(user._id, user.role);
     return res.status(201).json({
