@@ -52,9 +52,16 @@ export const getCurrentUserProfile = async () => {
   try {
     console.log('🔍 Fetching current user profile');
     
-    const response = await API.get('/profiles/me');
+    const response = await API.get('/profile/me');
     
     console.log('✅ Current user profile fetched successfully:', response.data);
+    
+    // Check if profile data exists, return null if no profile found
+    if (response.data.success && !response.data.data) {
+      console.log('📝 No profile data found (this is normal for new users)');
+      return null;
+    }
+    
     return response.data;
   } catch (error) {
     // Handle 404 gracefully - user doesn't have a profile yet
@@ -70,15 +77,32 @@ export const getCurrentUserProfile = async () => {
 };
 
 /**
- * Create a new profile
- * @param {Object} profileData - The profile data to create
- * @returns {Promise} API response with created profile
+ * Create or update profile (unified function)
+ * @param {Object} profileData - The profile data to create or update
+ * @returns {Promise} API response with profile data
  */
 export const createProfile = async (profileData) => {
   try {
-    console.log('📝 Creating new profile:', { ...profileData, email: '[PROTECTED]' });
+    console.log('📝 Creating profile:', { ...profileData, email: '[PROTECTED]' });
     
-    const response = await API.post('/profiles', profileData);
+    // Transform frontend form data to backend expected format
+    const transformedData = {
+      name: profileData.name || '',
+      bio: profileData.bio || '',
+      // Transform address to location format expected by backend
+      location: {
+        country: profileData.location?.country || '',
+        state: profileData.location?.state || '',
+        city: profileData.location?.city || '',
+        address: profileData.location?.address|| ''
+      },
+      phone: profileData.phone || ''
+    };
+    
+    console.log('🔄 Transformed data for backend:', { ...transformedData, email: '[PROTECTED]' });
+    
+    // Use POST endpoint for create/update
+    const response = await API.post('/profile', transformedData);
     
     console.log('✅ Profile created successfully:', response.data);
     return response.data;
@@ -88,25 +112,50 @@ export const createProfile = async (profileData) => {
   }
 };
 
-// Note: The /profiles/me PUT route has been replaced with create/update by ID
-// Use createProfile for new profiles or updateProfile with profile ID for updates
-
 /**
- * Update a specific profile by ID
- * @param {string} profileId - The profile ID to update
- * @param {Object} profileData - The updated profile data
+ * Update profile (alias for createProfile - same function)
+ * @param {string} profileId - Ignored (kept for compatibility)
+ * @param {Object} profileData - The profile data to update
  * @returns {Promise} API response with updated profile
  */
 export const updateProfile = async (profileId, profileData) => {
+  // Use the unified create/update function
+  return createProfile(profileData);
+};
+
+/**
+ * Update current user's profile (transforms frontend data to backend format)
+ * @param {Object} profileData - The profile data from frontend form
+ * @returns {Promise} API response with updated profile
+ */
+export const updateCurrentUserProfile = async (profileData) => {
   try {
-    console.log(`📝 Updating profile ${profileId}:`, { ...profileData, email: '[PROTECTED]' });
+    console.log('📝 Updating current user profile:', { ...profileData, email: '[PROTECTED]' });
     
-    const response = await API.put(`/profiles/${profileId}`, profileData);
+    // Transform frontend form data to backend expected format
+    const transformedData = {
+      name: `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim(),
+
+      bio: profileData.bio || '',
+      // Transform address to location format expected by backend
+      location: {
+        country: profileData.address?.country || '',
+        state: profileData.address?.state || '',
+        city: profileData.address?.city || '',
+        address: profileData.address?.street || ''
+      },
+      phone: profileData.phone || ''
+    };
+    
+    console.log('🔄 Transformed data for backend:', { ...transformedData, email: '[PROTECTED]' });
+    
+    // Use POST endpoint for create/update with upsert
+    const response = await API.post('/profile', transformedData);
     
     console.log('✅ Profile updated successfully:', response.data);
     return response.data;
   } catch (error) {
-    console.error(`❌ Error updating profile ${profileId}:`, error);
+    console.error('❌ Error updating profile:', error);
     throw error;
   }
 };
@@ -138,8 +187,13 @@ export const exampleProfileData = {
   name: "John Doe",
   email: "john.doe@example.com",
   bio: "Passionate about making communities better through technology.",
-  location: "Mumbai, Maharashtra, India",
-  skills: ["JavaScript", "React", "Node.js", "MongoDB", "Problem Solving"]
+  location: {
+    country: "India",
+    state: "Maharashtra", 
+    city: "Mumbai",
+    address: "123 Marine Drive"
+  },
+  phone: "+91 98765 43210"
 };
 
 // Sample JSON for profile creation request:
@@ -147,8 +201,13 @@ export const sampleCreateRequest = {
   name: "Jane Smith",
   email: "jane.smith@email.com",
   bio: "Full-stack developer with 3+ years experience",
-  location: "Delhi, India",
-  skills: ["Python", "Django", "PostgreSQL", "Vue.js"]
+  location: {
+    country: "India",
+    state: "Delhi",
+    city: "New Delhi",
+    address: "456 Connaught Place"
+  },
+  phone: "+91 87654 32109"
 };
 
 // Sample JSON response after profile creation:
@@ -160,8 +219,13 @@ export const sampleCreateResponse = {
     name: "Jane Smith",
     email: "jane.smith@email.com",
     bio: "Full-stack developer with 3+ years experience",
-    location: "Delhi, India",
-    skills: ["Python", "Django", "PostgreSQL", "Vue.js"],
+    location: {
+      country: "India",
+      state: "Delhi",
+      city: "New Delhi",
+      address: "456 Connaught Place"
+    },
+    phone: "+91 87654 32109",
     createdAt: "2024-01-15T10:30:00.000Z",
     updatedAt: "2024-01-15T10:30:00.000Z"
   },
@@ -175,6 +239,7 @@ export default {
   getCurrentUserProfile,
   createProfile,
   updateProfile,
+  updateCurrentUserProfile,
   deleteProfile,
   exampleProfileData,
   sampleCreateRequest,

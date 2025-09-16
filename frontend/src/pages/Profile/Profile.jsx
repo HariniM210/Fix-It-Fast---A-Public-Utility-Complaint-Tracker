@@ -17,17 +17,19 @@ const Profile = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   
-  // Form state
+  // Form state with nested location structure
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     bio: '',
-    location: '',
-    skills: []
+    location: {
+      country: '',
+      state: '',
+      city: '',
+      address: ''
+    },
+    phone: ''
   });
-  
-  // Skills input state
-  const [skillInput, setSkillInput] = useState('');
 
   // Fetch profile on component mount
   useEffect(() => {
@@ -41,7 +43,8 @@ const Profile = () => {
       
       const response = await getCurrentUserProfile();
       
-      if (response === null) {
+      // Handle both null response and response with null data
+      if (response === null || !response.data || response.data === null) {
         // No profile exists, show create form
         console.log('🔄 No profile found, showing create form');
         setProfile(null);
@@ -62,8 +65,13 @@ const Profile = () => {
           name: response.data.name || '',
           email: response.data.email || '',
           bio: response.data.bio || '',
-          location: response.data.location || '',
-          skills: response.data.skills || []
+          location: {
+            country: response.data.location?.country || '',
+            state: response.data.location?.state || '',
+            city: response.data.location?.city || '',
+            address: response.data.location?.address || ''
+          },
+          phone: response.data.phone || ''
         });
       }
     } catch (error) {
@@ -77,29 +85,25 @@ const Profile = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleAddSkill = (e) => {
-    e.preventDefault();
-    if (skillInput.trim() && !formData.skills.includes(skillInput.trim())) {
+    
+    // Handle nested location fields
+    if (name.startsWith('location.')) {
+      const locationField = name.split('.')[1];
       setFormData(prev => ({
         ...prev,
-        skills: [...prev.skills, skillInput.trim()]
+        location: {
+          ...prev.location,
+          [locationField]: value
+        }
       }));
-      setSkillInput('');
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
     }
   };
 
-  const handleRemoveSkill = (skillToRemove) => {
-    setFormData(prev => ({
-      ...prev,
-      skills: prev.skills.filter(skill => skill !== skillToRemove)
-    }));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -110,20 +114,15 @@ const Profile = () => {
     try {
       let response;
       
-      if (profile) {
-        // Update existing profile
-        console.log('🔄 Updating existing profile:', profile._id);
-        response = await updateProfile(profile._id, formData);
-      } else {
-        // Create new profile
-        console.log('🔄 Creating new profile');
-        response = await createProfile(formData);
-      }
+      // Always use createProfile which handles both create and update via upsert
+      console.log('🔄 Saving profile');
+      response = await createProfile(formData);
 
       console.log('✅ Profile saved successfully:', response);
       
       setProfile(response.data);
-      setSuccess(profile ? 'Profile updated successfully!' : 'Profile created successfully!');
+      // Use the message from the backend response
+      setSuccess(response.message || (profile ? 'Profile updated successfully!' : 'Profile created successfully!'));
       setIsEditing(false);
       
       // Clear success message after 3 seconds
@@ -149,13 +148,26 @@ const Profile = () => {
         name: profile.name || '',
         email: profile.email || '',
         bio: profile.bio || '',
-        location: profile.location || '',
-        skills: profile.skills || []
+        location: {
+          country: profile.location?.country || '',
+          state: profile.location?.state || '',
+          city: profile.location?.city || '',
+          address: profile.location?.address || ''
+        },
+        phone: profile.phone || ''
       });
     }
     setIsEditing(false);
     setError('');
     setSuccess('');
+  };
+
+  // Helper function to format location for display
+  const formatLocation = (location) => {
+    if (!location) return 'No location provided';
+    
+    const parts = [location.address, location.city, location.state, location.country].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'No location provided';
   };
 
   if (loading) {
@@ -219,22 +231,12 @@ const Profile = () => {
             
             <div className="profile-field">
               <label>Location</label>
-              <p>{profile.location || 'No location provided'}</p>
+              <p>{formatLocation(profile.location)}</p>
             </div>
             
             <div className="profile-field">
-              <label>Skills</label>
-              <div className="skills-display">
-                {profile.skills && profile.skills.length > 0 ? (
-                  profile.skills.map((skill, index) => (
-                    <span key={index} className="skill-tag">
-                      {skill}
-                    </span>
-                  ))
-                ) : (
-                  <p>No skills listed</p>
-                )}
-              </div>
+              <label>Phone Number</label>
+              <p>{profile.phone || 'No phone number provided'}</p>
             </div>
           </div>
         </div>
@@ -280,55 +282,73 @@ const Profile = () => {
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="location">Location</label>
-              <input
-                type="text"
-                id="location"
-                name="location"
-                value={formData.location}
-                onChange={handleInputChange}
-                placeholder="City, State, Country"
-              />
-            </div>
+            {/* Location Fields */}
+            <fieldset className="location-fieldset">
+              <legend>Location</legend>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="country">Country</label>
+                  <input
+                    type="text"
+                    id="country"
+                    name="location.country"
+                    value={formData.location.country}
+                    onChange={handleInputChange}
+                    placeholder="e.g., India"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="state">State</label>
+                  <input
+                    type="text"
+                    id="state"
+                    name="location.state"
+                    value={formData.location.state}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Tamil Nadu"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="city">City</label>
+                  <input
+                    type="text"
+                    id="city"
+                    name="location.city"
+                    value={formData.location.city}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Chennai"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="address">Address</label>
+                  <input
+                    type="text"
+                    id="address"
+                    name="location.address"
+                    value={formData.location.address}
+                    onChange={handleInputChange}
+                    placeholder="e.g., 123 Gandhi Street"
+                  />
+                </div>
+              </div>
+            </fieldset>
 
             <div className="form-group">
-              <label>Skills</label>
-              <div className="skills-input">
-                <input
-                  type="text"
-                  value={skillInput}
-                  onChange={(e) => setSkillInput(e.target.value)}
-                  placeholder="Add a skill (e.g., JavaScript)"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAddSkill(e);
-                    }
-                  }}
-                />
-                <button 
-                  type="button" 
-                  className="btn-secondary"
-                  onClick={handleAddSkill}
-                >
-                  Add
-                </button>
-              </div>
-              
-              <div className="skills-list">
-                {formData.skills.map((skill, index) => (
-                  <span key={index} className="skill-tag editable">
-                    {skill}
-                    <button
-                      type="button"
-                      className="remove-skill"
-                      onClick={() => handleRemoveSkill(skill)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+              <label htmlFor="phone">Phone Number</label>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+                placeholder="Enter your phone number (e.g., +91 98765 43210)"
+              />
             </div>
 
             <div className="form-actions">

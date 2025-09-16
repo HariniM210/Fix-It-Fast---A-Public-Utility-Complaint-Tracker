@@ -1,3 +1,4 @@
+// frontend/src/service/api.js
 import axios from 'axios';
 
 // Resolve API base URL across Vite and CRA-style envs
@@ -96,6 +97,61 @@ export const dashboardAPI = {
   }
 };
 
+// Contact API calls
+export const contactAPI = {
+  // Send contact message (public)
+  sendMessage: async (data) => {
+    try {
+      console.log('🔄 Sending contact message...');
+      const response = await API.post('/contact', data);
+      console.log('✅ Contact message sent:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error sending contact message:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Get all contact messages (admin only)
+  getMessages: async (params = {}) => {
+    try {
+      console.log('🔄 Fetching contact messages...');
+      const response = await API.get('/contact', { params });
+      console.log('✅ Contact messages fetched:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching contact messages:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Update contact message status (admin only)
+  updateStatus: async (id, status, adminResponse = '') => {
+    try {
+      console.log(`🔄 Updating contact status for ID: ${id}`);
+      const response = await API.put(`/contact/${id}/status`, { status, adminResponse });
+      console.log('✅ Contact status updated:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error updating contact status:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Get contact statistics (admin only)
+  getStats: async () => {
+    try {
+      console.log('🔄 Fetching contact statistics...');
+      const response = await API.get('/contact/stats');
+      console.log('✅ Contact statistics fetched:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching contact statistics:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+};
+
 // Users API calls
 export const usersAPI = {
   getAll: (params) => API.get('/users', { params }),
@@ -124,5 +180,8 @@ export const apiHelpers = {
     return !!localStorage.getItem('authToken');
   }
 };
+
+// Legacy export for backward compatibility
+export const sendContactMessage = contactAPI.sendMessage;
 
 export default API;

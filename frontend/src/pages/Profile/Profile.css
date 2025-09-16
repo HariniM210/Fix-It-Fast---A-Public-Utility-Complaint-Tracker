@@ -181,6 +181,40 @@
   min-height: 100px;
 }
 
+/* Location Fieldset */
+.location-fieldset {
+  border: 2px solid #e1e8ed;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+  background-color: #f8f9fa;
+}
+
+.location-fieldset legend {
+  font-weight: 600;
+  color: #2c3e50;
+  padding: 0 10px;
+  font-size: 1rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.form-row:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
 /* Skills Input */
 .skills-input {
   display: flex;

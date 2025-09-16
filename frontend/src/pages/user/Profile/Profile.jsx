@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import ProfileForm from '../../../components/forms/ProfileForm/ProfileForm';
-import { getCurrentUserProfile, updateCurrentUserProfile } from '../../../services/profileService';
+import { getCurrentUserProfile, updateCurrentUserProfile, createProfile } from '../../../services/profileService';
 import './Profile.css';
 
 const Profile = () => {
@@ -53,11 +53,20 @@ const Profile = () => {
       
       console.log('📤 Submitting profile data:', formData);
       
-      const response = await updateCurrentUserProfile(formData);
-      console.log('✅ Profile saved:', response);
+      // Use the correct function based on whether profile exists
+      let response;
+      if (profile) {
+        // Profile exists - update it
+        response = await updateCurrentUserProfile(formData);
+        console.log('✅ Profile updated:', response);
+      } else {
+        // No profile exists - create new one
+        response = await createProfile(formData);
+        console.log('✅ Profile created:', response);
+      }
       
-      setProfile(response.profile);
-      setSuccess(response.message || 'Profile updated successfully!');
+      setProfile(response.data);
+      setSuccess(response.message || 'Profile saved successfully!');
       setShowForm(false);
       
       // Clear success message after 3 seconds

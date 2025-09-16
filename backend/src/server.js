@@ -1,4 +1,4 @@
-// src/server.js
+// backend/src/server.js
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -65,6 +65,7 @@ const connectDatabase = async () => {
         family: 4,
         serverSelectionTimeoutMS: 15000,
         socketTimeoutMS: 45000,
+        dbName: 'fixitfast' // Explicitly set database name
       });
 
       console.log('✅ Connected to MongoDB Atlas!');
@@ -105,15 +106,17 @@ const connectDatabase = async () => {
 // ---------------- Routes ----------------
 const authRoutes = require('./routes/auth');
 const complaintRoutes = require('./routes/complaints');
-const profileRoutes = require('./routes/profiles');
+const profileRoutes = require('./routes/profile');
 const dashboardRoutes = require('./routes/dashboard');
 const healthRoute = require('./routes/health');
+const contactRoutes = require('./routes/contact'); // Add contact routes
 
 app.use('/api/auth', authRoutes);
 app.use('/api/complaints', complaintRoutes);
-app.use('/api/profiles', profileRoutes);
+app.use('/api/profile', profileRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/health', healthRoute);
+app.use('/api/contact', contactRoutes); // Mount contact routes
 
 // Root endpoint
 app.get('/', (req, res) => {

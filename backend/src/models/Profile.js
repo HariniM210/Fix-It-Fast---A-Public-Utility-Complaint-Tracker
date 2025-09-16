@@ -5,58 +5,27 @@ const profileSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'User ID is required'],
-    unique: true // One profile per user
+    unique: true,
+    required: true // One profile per user
   },
   
   // Basic profile information
-  name: {
-    type: String,
-    required: [true, 'Name is required'],
-    trim: true,
-    minlength: [2, 'Name must be at least 2 characters'],
-    maxlength: [100, 'Name cannot exceed 100 characters']
-  },
-  
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    lowercase: true,
-    trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
-  },
-  
-  bio: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'Bio cannot exceed 500 characters'],
-    default: ''
-  },
-  
+  name: { type: String, required: true },
+  bio: { type: String, default: '' },
   location: {
-    type: String,
-    trim: true,
-    maxlength: [100, 'Location cannot exceed 100 characters'],
-    default: ''
+    country: { type: String, default: '' },
+    state: { type: String, default: '' },
+    city: { type: String, default: '' },
+    address: { type: String, default: '' }
   },
-  
-  skills: [{
-    type: String,
-    trim: true,
-    maxlength: [50, 'Each skill cannot exceed 50 characters']
-  }]
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
+  phone: { type: String, default: '' }
+}, { timestamps: true });
 
 // Indexes for better query performance
 profileSchema.index({ user: 1 }, { unique: true });
-profileSchema.index({ email: 1 });
-profileSchema.index({ location: 1 });
-profileSchema.index({ skills: 1 });
+profileSchema.index({ 'location.country': 1 });
+profileSchema.index({ 'location.state': 1 });
+profileSchema.index({ 'location.city': 1 });
 
 // Export the model
 module.exports = mongoose.model('Profile', profileSchema);
